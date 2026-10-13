@@ -37,12 +37,6 @@ jobs:
             uses-material-design: true
           EOF
 
-      - name: Recreate android folder fresh
-        run: |
-          rm -rf android
-          flutter create . --project-name ngalong_tube_v2 --org com.ngalongtube --platforms android
-          flutter pub get
-
       - name: Build APK
         run: flutter build apk --release
 
