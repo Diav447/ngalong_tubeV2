@@ -3,15 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
-void main() => runApp(const NgalongTubeV2());
+void main() => runApp(const NgalongTubeV3());
 
-class NgalongTubeV2 extends StatelessWidget {
-  const NgalongTubeV2({super.key});
+class NgalongTubeV3 extends StatelessWidget {
+  const NgalongTubeV3({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'NgalongTube V2',
       theme: ThemeData.dark(),
       home: const SearchPage(),
     );
@@ -27,50 +26,70 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final _controller = TextEditingController(text: "playlist ngalong malam");
   List videos = [];
-  String log = "V2 Siap - Anti Blokir";
+  String log = "V3 - Mode Brutal Active";
   bool loading = false;
 
-  final List<String> instances = [
-    "https://inv.nadeko.net",
-    "https://yewtu.be",
-    "https://invidious.nerdvpn.de",
-  ];
+  // Proxy yang masih tembus di Indo
+  String proxify(String url, int type) {
+    if (type == 0) return "https://api.allorigins.win/raw?url=${Uri.encodeComponent(url)}";
+    if (type == 1) return "https://corsproxy.io/?${Uri.encodeComponent(url)}";
+    return "https://api.codetabs.com/v1/proxy?quest=${Uri.encodeComponent(url)}";
+  }
 
   Future<void> search(String q) async {
     if (q.isEmpty) return;
     setState(() {
       loading = true;
-      log = "Nyari: $q...";
+      log = "Nge-bypass blokir...";
       videos = [];
     });
 
-    for (var base in instances) {
-      try {
-        String apiUrl = "$base/api/v1/search?q=${Uri.encodeComponent(q)}";
-        // Lewat proxy biar DNS lokal ga diblock
-        Uri proxy = Uri.parse(
-            "https://api.allorigins.win/raw?url=${Uri.encodeComponent(apiUrl)}");
-        
-        http.Response res = await http.get(proxy).timeout(const Duration(seconds: 12));
-        
-        if (res.statusCode == 200) {
-          var data = jsonDecode(res.body);
-          setState(() {
-            videos = data.where((v) => v['type'] == 'video').toList();
-            log = "Dapet ${videos.length} video dari ${base.replaceAll('https://', '')}";
-            loading = false;
-          });
-          return;
+    List<String> apis = [
+      "https://inv.nadeko.net/api/v1/search?q=${Uri.encodeComponent(q)}",
+      "https://yewtu.be/api/v1/search?q=${Uri.encodeComponent(q)}",
+      "https://pipedapi.kavin.rocks/search?q=${Uri.encodeComponent(q)}",
+      "https://api.piped.privacydev.net/search?q=${Uri.encodeComponent(q)}",
+    ];
+
+    for (var api in apis) {
+      for (int p = 0; p < 3; p++) {
+        try {
+          var proxied = proxify(api, p);
+          var res = await http.get(Uri.parse(proxied)).timeout(const Duration(seconds: 15));
+          if (res.statusCode == 200 && res.body.length > 100) {
+            var data = jsonDecode(res.body);
+            List list = [];
+            if (data is Map && data.containsKey('items')) {
+              // format piped
+              list = data['items'];
+              list = list.map((e) => {
+                'videoId': e['url']?.toString().split('v=').last ?? e['url'].toString().split('/').last,
+                'title': e['title'],
+                'author': e['uploaderName']
+              }).toList();
+            } else {
+              // format invidious
+              list = data;
+            }
+            var filtered = list.where((v) => v['videoId'] != null).toList();
+            if (filtered.isNotEmpty) {
+              setState(() {
+                videos = filtered;
+                log = "Dapet ${filtered.length} video! Proxy $p tembus.";
+                loading = false;
+              });
+              return;
+            }
+          }
+        } catch (e) {
+          // lanjut proxy lain
         }
-      } catch (e) {
-        setState(() {
-          log = "Coba instance lain... ($e)";
-        });
       }
     }
+
     setState(() {
       loading = false;
-      log = "Gagal semua, nyalain VPN JP + DNS Otomatis";
+      log = "Masih ke-block semua. Coba: 1. Nyalain 1.1.1.1 (WARP), 2. Klik search lagi";
     });
   }
 
@@ -84,10 +103,7 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text("😈 NgalongTube V2"),
-        backgroundColor: Colors.black,
-      ),
+      appBar: AppBar(title: const Text("😈 NgalongTube V3 Brutal"), backgroundColor: Colors.black),
       body: Column(
         children: [
           Padding(
@@ -96,46 +112,40 @@ class _SearchPageState extends State<SearchPage> {
               controller: _controller,
               onSubmitted: search,
               decoration: InputDecoration(
-                hintText: "ikan, ngalong malam...",
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                suffixIcon: IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () => search(_controller.text)),
+                hintText: "cari apa...",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: () => search(_controller.text)),
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Text(log,
-                style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          ),
-          if (loading) const LinearProgressIndicator(),
+          Padding(padding: const EdgeInsets.all(8), child: Text(log, style: const TextStyle(color: Colors.purpleAccent, fontSize: 12), textAlign: TextAlign.center)),
+          if (loading) const LinearProgressIndicator(color: Colors.purple),
           Expanded(
             child: ListView.builder(
               itemCount: videos.length,
               itemBuilder: (c, i) {
                 var v = videos[i];
                 return ListTile(
-                  leading: Image.network(
-                    "https://i.ytimg.com/vi/${v['videoId']}/mqdefault.jpg",
-                    width: 100,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.play_circle),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.network("https://i.ytimg.com/vi/${v['videoId']}/mqdefault.jpg", width: 100, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.play_circle)),
                   ),
-                  title: Text(v['title'] ?? '', maxLines: 2),
-                  subtitle: Text(v['author'] ?? ''),
+                  title: Text(v['title'] ?? '', maxLines: 2, style: const TextStyle(fontSize: 13)),
+                  subtitle: Text(v['author'] ?? '', style: const TextStyle(fontSize: 11)),
                   onTap: () async {
-                    final ytUrl = Uri.parse(
-                        "https://www.youtube.com/watch?v=${v['videoId']}");
-                    await launchUrl(ytUrl);
+                    final ytUrl = Uri.parse("https://www.youtube.com/watch?v=${v['videoId']}");
+                    await launchUrl(ytUrl, mode: LaunchMode.externalApplication);
                   },
                 );
               },
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.small(
+        backgroundColor: Colors.purple,
+        onPressed: () => search(_controller.text),
+        child: const Icon(Icons.refresh),
       ),
     );
   }
