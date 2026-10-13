@@ -15,7 +15,29 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      - name: Create android folder only if missing
+      - name: Fix pubspec.yaml (inject dependencies)
+        run: |
+          cat > pubspec.yaml << 'EOF'
+          name: ngalong_tube_v2
+          description: NgalongTube V2 Anti Blokir
+          publish_to: 'none'
+          version: 2.0.0+1
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
+          dependencies:
+            flutter:
+              sdk: flutter
+            http: ^1.2.0
+            url_launcher: ^6.2.5
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^3.0.0
+          flutter:
+            uses-material-design: true
+          EOF
+
+      - name: Create android folder if missing
         run: |
           if [ ! -d "android" ]; then
             flutter create . --project-name ngalong_tube_v2 --org com.ngalongtube --platforms android
