@@ -17,14 +17,14 @@ jobs:
         run: |
           rm -rf android
           flutter create --project-name ngalong_tube_v2 --org com.ngalongtube --platforms android .
-      
+
       - name: Fix pubspec.yaml
         run: |
           cat > pubspec.yaml <<'EOPY'
           name: ngalong_tube_v2
           description: NgalongTube V2 Anti Blokir
           publish_to: 'none'
-          version: 2.0.0+9
+          version: 2.0.0+10
           environment:
             sdk: '>=3.0.0 <4.0.0'
           dependencies:
@@ -32,8 +32,6 @@ jobs:
               sdk: flutter
             http: ^1.2.0
             url_launcher: ^6.2.5
-            flutter:
-              sdk: flutter
           dev_dependencies:
             flutter_test:
               sdk: flutter
@@ -47,5 +45,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NgalongTube-V9-APK
+          name: NgalongTube-V10-FINAL
           path: build/app/outputs/flutter-apk/app-release.apk
