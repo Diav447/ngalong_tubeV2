@@ -15,7 +15,7 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      - name: Fix pubspec.yaml (inject dependencies)
+      - name: Fix pubspec.yaml
         run: |
           cat > pubspec.yaml << 'EOF'
           name: ngalong_tube_v2
@@ -42,10 +42,20 @@ jobs:
           if [ ! -d "android" ]; then
             flutter create . --project-name ngalong_tube_v2 --org com.ngalongtube --platforms android
           fi
-          flutter pub get
 
-      - name: Build APK Release
-        run: flutter build apk --release
+      - name: Fix Kotlin version (1.7 -> 1.9)
+        run: |
+          sed -i "s/1.7.10/1.9.22/g" android/build.gradle || true
+          sed -i "s/1.7.1/1.9.22/g" android/build.gradle || true
+          sed -i "s/1.7.10/1.9.22/g" android/settings.gradle || true
+          sed -i "s/1.7.1/1.9.22/g" android/settings.gradle || true
+          sed -i "s/1.7.10/1.9.22/g" android/app/build.gradle || true
+          cat android/build.gradle | grep kotlin
+
+      - name: Build APK
+        run: |
+          flutter pub get
+          flutter build apk --release
 
       - uses: actions/upload-artifact@v4
         with:
