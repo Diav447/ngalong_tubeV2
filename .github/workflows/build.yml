@@ -13,10 +13,16 @@ jobs:
           flutter-version: '3.24.5'
           channel: 'stable'
 
-      - name: Create android folder proper
+      - name: Create android folder
         run: |
           rm -rf android
           flutter create --project-name ngalong_tube_v2 --org com.ngalongtube --platforms android .
+
+      - name: Force INTERNET permission
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          grep -q "android.permission.INTERNET" $MANIFEST || sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST
+          cat $MANIFEST
 
       - name: Fix pubspec.yaml
         run: |
@@ -24,7 +30,7 @@ jobs:
           name: ngalong_tube_v2
           description: NgalongTube V2 Anti Blokir
           publish_to: 'none'
-          version: 2.0.0+10
+          version: 2.0.0+13
           environment:
             sdk: '>=3.0.0 <4.0.0'
           dependencies:
@@ -45,5 +51,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NgalongTube-V10-FINAL
+          name: NgalongTube-V13-INTERNET-FIX
           path: build/app/outputs/flutter-apk/app-release.apk
