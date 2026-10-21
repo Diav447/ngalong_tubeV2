@@ -18,6 +18,12 @@ jobs:
           channel: 'stable'
           cache: false
 
+      - name: Fix manual android folder (auto-regenerate)
+        run: |
+          rm -rf android
+          flutter create . --project-name ngalong_tubev2 --platforms=android
+          cat android/app/build.gradle
+
       - run: flutter clean
       - run: flutter pub get
       - run: flutter build apk --release
