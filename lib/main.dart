@@ -1,87 +1,123 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/services.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
-void main()=>runApp(const MaterialApp(debugShowCheckedModeBanner:false, home:SearchPage()));
+void main() => runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: SearchPage()));
 
-class SearchPage extends StatefulWidget{const SearchPage({super.key}); @override State<SearchPage> createState()=>_S();}
-class _S extends State<SearchPage>{
-  final _c=TextEditingController(text:"playlist ngalong malam");
-  List vids=[]; List<String> logs=[]; bool load=false; bool showLog=true;
+class SearchPage extends StatefulWidget { const SearchPage({super.key}); @override State<SearchPage> createState() => _S(); }
 
-  void addLog(String s){
-    final time="${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second}";
-    setState(()=>logs.insert(0,"[$time] $s"));
-    print("[$time] $s");
+class _S extends State<SearchPage> {
+  final _c = TextEditingController(text: "jp sad song");
+  List vids = [];
+  List<String> logs = [];
+  bool load = false;
+  bool showLog = true;
+
+  void addLog(String s) {
+    final t = "${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second}";
+    setState(() => logs.insert(0, "[$t] $s"));
   }
 
   Future<void> search(String q) async {
-    setState((){load=true; vids=[]; logs=[];});
+    setState(() { load = true; vids = []; logs = []; });
     addLog("🚀 START search: $q");
-    addLog("📱 DNS Private: ${await checkDNS()}");
+    final headers = {"User-Agent": "Mozilla/5.0 (Linux; Android 13)"};
+    
+    // LIST API LU YANG 5 JALUR
+    final List<Map> routes = [
+      {"name": "YT WEB", "url": "https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", "type": "post_web"},
+      {"name": "YT ANDROID", "url": "https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8", "type": "post_android"},
+      {"name": "PIPED puffy", "url": "https://vid.puffyan.us/api/v1/search?q=", "type": "get"},
+      {"name": "PIPED y.com.sb", "url": "https://y.com.sb/api/v1/search?q=", "type": "get"},
+      {"name": "INVID namazso", "url": "https://invidious.namazso.eu/api/v1/search?q=", "type": "get"},
+    ];
 
-    final headers={"User-Agent":"Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0","Content-Type":"application/json","X-YouTube-Client-Name":"1","X-YouTube-Client-Version":"2.20240101.01.00"};
-
-    // 1. YT WEB
-    try{
-      addLog("1/5 TRY POST https://www.youtube.com/youtubei/v1/search [WEB]");
-      var r=await http.post(Uri.parse("https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"),
-        headers: headers, body: jsonEncode({"context":{"client":{"clientName":"WEB","clientVersion":"2.20240101.01.00","hl":"id","gl":"ID"}},"query":q})
-      ).timeout(const Duration(seconds:12));
-      addLog("1/5 RESP Status:${r.statusCode} Length:${r.body.length} BodyPreview:${r.body.substring(0, r.body.length>200?200:r.body.length).replaceAll('\n',' ')}");
-      if(r.statusCode==200 && r.body.contains("videoId")){
-        var j=jsonDecode(r.body); var contents=j['contents']?['twoColumnSearchResultsRenderer']?['primaryContents']?['sectionListRenderer']?['contents']??[];
-        List f=[]; for(var sec in contents){var items=sec['itemSectionRenderer']?['contents']??[]; for(var it in items){var vr=it['videoRenderer']; if(vr!=null) f.add({'videoId':vr['videoId'],'title':vr['title']?['runs']?[0]?['text'],'author':vr['ownerText']?['runs']?[0]?['text']});}}
-        if(f.isNotEmpty){addLog("✅ SUCCESS jalur 1, dapet ${f.length} video"); setState((){vids=f.take(15).toList(); load=false;}); return;}
-      } else {addLog("❌ FAIL jalur 1 - status bukan 200 atau ga ada videoId");}
-    }catch(e,stack){addLog("💥 ERROR jalur 1: $e \n $stack");}
-
-    // 2. YT ANDROID
-    try{
-      addLog("2/5 TRY POST YT [ANDROID]");
-      var r=await http.post(Uri.parse("https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"),
-        headers: headers, body: jsonEncode({"context":{"client":{"clientName":"ANDROID","clientVersion":"19.09.36","androidSdkVersion":30}},"query":q})
-      ).timeout(const Duration(seconds:12));
-      addLog("2/5 RESP Status:${r.statusCode} Length:${r.body.length}");
-      if(r.statusCode==200 && r.body.contains("videoId")){
-        var j=jsonDecode(r.body); var contents=j['contents']?['twoColumnSearchResultsRenderer']?['primaryContents']?['sectionListRenderer']?['contents']??[];
-        List f=[]; for(var sec in contents){var items=sec['itemSectionRenderer']?['contents']??[]; for(var it in items){var vr=it['videoRenderer']; if(vr!=null) f.add({'videoId':vr['videoId'],'title':vr['title']?['runs']?[0]?['text'],'author':vr['ownerText']?['runs']?[0]?['text']});}}
-        if(f.isNotEmpty){addLog("✅ SUCCESS jalur 2"); setState((){vids=f.take(15).toList(); load=false;}); return;}
-      }
-    }catch(e){addLog("💥 ERROR jalur 2: $e");}
-
-    // 3-5 GET APIS
-    List<String> apis=["https://vid.puffyan.us/api/v1/search?q=","https://y.com.sb/api/v1/search?q=","https://pipedapi.kavin.rocks/search?q="];
-    for(int i=0;i<apis.length;i++){
-      try{
-        addLog("${3+i}/5 TRY GET ${apis[i]}${q}");
-        var r=await http.get(Uri.parse("${apis[i]}${Uri.encodeComponent(q)}"), headers: {"User-Agent":"Mozilla/5.0"}).timeout(const Duration(seconds:10));
-        addLog("${3+i}/5 RESP Status:${r.statusCode} Length:${r.body.length} Preview:${r.body.substring(0, r.body.length>150?150:r.body.length)}");
-        if(r.statusCode==200){
-          var j=jsonDecode(r.body); var items=j is Map? (j['items']??j['content']??[]): j;
-          if(items is List && items.isNotEmpty){List m=[]; for(var x in items){var id=(x['url']??'').toString().split('v=').last.split('&').first.replaceAll('/watch?v=',''); if(id.length>5) m.add({'videoId':id,'title':x['title'],'author':x['uploaderName']??x['author']});} if(m.isNotEmpty){addLog("✅ SUCCESS jalur ${3+i} ${apis[i]}"); setState((){vids=m.take(15).toList(); load=false;}); return;}}
+    for (int i = 0; i < routes.length; i++) {
+      if (vids.isNotEmpty) break;
+      try {
+        addLog("${i+1}/5 TRY ${routes[i]['name']}");
+        http.Response r;
+        if (routes[i]['type'] == 'post_web') {
+          r = await http.post(Uri.parse(routes[i]['url']), headers: headers, body: jsonEncode({"context":{"client":{"clientName":"WEB","clientVersion":"2.20240101"}}, "query": q})).timeout(Duration(seconds:12));
+        } else if (routes[i]['type'] == 'post_android') {
+          r = await http.post(Uri.parse(routes[i]['url']), headers: headers, body: jsonEncode({"context":{"client":{"clientName":"ANDROID","clientVersion":"19.09"}}, "query": q})).timeout(Duration(seconds:12));
+        } else {
+          r = await http.get(Uri.parse("${routes[i]['url']}${Uri.encodeComponent(q)}"), headers: headers).timeout(Duration(seconds:12));
         }
-      }catch(e){addLog("💥 ERROR jalur ${3+i}: $e");}
+
+        addLog("${i+1}/5 RESP ${r.statusCode} Len:${r.body.length}");
+        if (r.statusCode == 200) {
+          List f = [];
+          if (r.body.trim().startsWith("{")) {
+            var j = jsonDecode(r.body);
+            var contents = j['contents']?['twoColumnSearchResultsRenderer']?['primaryContents']?['sectionListRenderer']?['contents'];
+            if (contents != null) {
+              for(var sec in contents){
+                var items = sec['itemSectionRenderer']?['contents'] ?? [];
+                for(var it in items){
+                  var vr = it['videoRenderer'];
+                  if(vr != null) f.add({"title": vr['title']?['runs']?[0]?['text'], "channel": vr['ownerText']?['runs']?[0]?['text'] ?? vr['longBylineText']?['runs']?[0]?['text'], "vid": vr['videoId'], "thumb": "https://i.ytimg.com/vi/${vr['videoId']}/hqdefault.jpg"});
+                }
+              }
+            }
+          } else {
+            var j = jsonDecode(r.body);
+            if (j is List) {
+              f = j.where((e)=>e['type']=='video').map((e)=>{"title": e['title'], "channel": e['author'], "vid": e['videoId'], "thumb": "https://i.ytimg.com/vi/${e['videoId']}/hqdefault.jpg"}).toList();
+            }
+          }
+          if (f.isNotEmpty) { setState(()=>vids=f); addLog("✅ SUCCESS jalur ${i+1}, dapet ${f.length}"); break; }
+        }
+      } catch(e) { addLog("💥 ERROR jalur ${i+1}: $e"); }
     }
-    addLog("❌ FINAL FAIL - semua 5 jalur gagal. Provider lu ngeblok semua.");
-    setState(()=>load=false);
+    setState(()=> load=false);
+    if(vids.isEmpty) addLog("❌ ALL FAIL - Coba search lain / ganti DNS 1.1.1.1");
   }
 
-  Future<String> checkDNS() async {try{var r=await http.get(Uri.parse("https://1.1.1.1/cdn-cgi/trace")).timeout(const Duration(seconds:3)); return "OK ${r.statusCode}";}catch(e){return "FAIL $e";}}
+  @override Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(backgroundColor: Colors.black, title: const Text("😈 V12 DEV CONS...", style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)), actions: [IconButton(icon: Icon(showLog?Icons.bug_report:Icons.bug_report_outlined, color: Colors.white), onPressed: ()=>setState(()=>showLog=!showLog))]),
+      body: Column(children: [
+        Padding(padding: const EdgeInsets.all(12), child: TextField(controller: _c, style: const TextStyle(color: Colors.white), onSubmitted: search, decoration: InputDecoration(hintText: "jp sad song", hintStyle: const TextStyle(color: Colors.white54), prefixIcon: const Icon(Icons.search, color: Colors.white70), filled: true, fillColor: const Color(0xFF2A2A2A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Colors.purpleAccent))))),
+        if(load) const LinearProgressIndicator(color: Colors.purpleAccent),
+        if(showLog) Container(height: 110, width: double.infinity, color: const Color(0xFF111111), padding: const EdgeInsets.all(6), child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: logs.map((l)=>Text(l, style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontFamily: 'monospace'))).toList()))),
+        Expanded(child: vids.isEmpty ? const Center(child: Text("Cari dulu bro...", style: TextStyle(color: Colors.white54))) : ListView.builder(itemCount: vids.length, itemBuilder: (_,i){
+          final v=vids[i];
+          return ListTile(
+            leading: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(v['thumb'], width: 110, height: 62, fit: BoxFit.cover)),
+            title: Text(v['title'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text(v['channel'] ?? '', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlayerPage(videoId: v['vid'], title: v['title']))),
+          );
+        }))
+      ]),
+    );
+  }
+}
 
-  @override void initState(){super.initState(); search(_c.text);}
-  @override Widget build(BuildContext context){
-    return Scaffold(backgroundColor:Colors.black, appBar:AppBar(title:const Text("😈 V12 DEV CONSOLE"), backgroundColor:Colors.black, actions:[IconButton(icon:const Icon(Icons.copy), onPressed:(){Clipboard.setData(ClipboardData(text:logs.join("\n"))); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text("Log dicopy!")));}), IconButton(icon:Icon(showLog?Icons.bug_report:Icons.bug_report_outlined), onPressed:()=>setState(()=>showLog=!showLog))]),
-      body:Column(children:[
-        Padding(padding:const EdgeInsets.all(12), child:TextField(controller:_c, onSubmitted:search, style:const TextStyle(color:Colors.white), decoration:InputDecoration(hintText:"cari...", hintStyle:const TextStyle(color:Colors.grey), filled:true, fillColor:Colors.white12, border:OutlineInputBorder(borderRadius:BorderRadius.circular(12)), suffixIcon:IconButton(icon:const Icon(Icons.search, color:Colors.white), onPressed:()=>search(_c.text))))),
-        if(load) const LinearProgressIndicator(color:Colors.purple),
-        if(showLog) Container(height:220, color:Colors.black87, child:Column(children:[
-          Container(color:Colors.white10, padding:const EdgeInsets.all(6), child:Row(mainAxisAlignment:MainAxisAlignment.spaceBetween, children:[const Text("CONSOLE LOG (kayak F12)", style:TextStyle(color:Colors.greenAccent, fontSize:11)), Text("${logs.length} lines", style:const TextStyle(color:Colors.grey, fontSize:10))])),
-          Expanded(child:ListView.builder(reverse:true, itemCount:logs.length, itemBuilder:(c,i){var l=logs[logs.length-1-i]; Color col=l.contains("✅")?Colors.greenAccent:l.contains("❌")||l.contains("💥")?Colors.redAccent:l.contains("TRY")?Colors.yellowAccent:Colors.white70; return Padding(padding:const EdgeInsets.symmetric(horizontal:8, vertical:2), child:Text(l, style:TextStyle(color:col, fontSize:10, fontFamily:'monospace')));}))
-        ])),
-        Expanded(child:vids.isEmpty &&!load? Center(child:Text(logs.isEmpty?"Mulai search...": "0 video - cek log di atas", style:const TextStyle(color:Colors.grey))) : ListView.builder(itemCount:vids.length, itemBuilder:(c,i){var v=vids[i]; return ListTile(leading:Image.network("https://i.ytimg.com/vi/${v['videoId']}/mqdefault.jpg", width:90, errorBuilder:(c,e,s)=>Container(width:90,color:Colors.grey)), title:Text(v['title']??'', maxLines:2, style:const TextStyle(fontSize:12, color:Colors.white)), subtitle:Text(v['author']??'', style:const TextStyle(color:Colors.grey)), onTap:()=>launchUrl(Uri.parse("https://www.youtube.com/watch?v=${v['videoId']}"), mode:LaunchMode.externalApplication));})),
-      ]));
+class PlayerPage extends StatefulWidget {
+  final String videoId; final String title;
+  const PlayerPage({super.key, required this.videoId, required this.title});
+  @override State<PlayerPage> createState() => _PlayerPageState();
+}
+
+class _PlayerPageState extends State<PlayerPage> {
+  late YoutubePlayerController _c;
+  @override void initState() {
+    super.initState();
+    _c = YoutubePlayerController(initialVideoId: widget.videoId, flags: const YoutubePlayerFlags(autoPlay: true, mute: false, enableCaption: false));
+  }
+  @override void dispose() { _c.dispose(); super.dispose(); }
+  @override Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(backgroundColor: Colors.black, title: Text(widget.title, style: const TextStyle(fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis)),
+      body: Column(children: [
+        YoutubePlayer(controller: _c, showVideoProgressIndicator: true, progressIndicatorColor: Colors.purpleAccent),
+        Padding(padding: const EdgeInsets.all(12), child: Text(widget.title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+      ]),
+    );
   }
 }
