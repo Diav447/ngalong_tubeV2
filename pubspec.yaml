@@ -1,13 +1,17 @@
-name: ngalong_tubev2
-description: Ngalong Tube V2 Internal Player
+kname: ngalong_tubev2
+description: Ngalong Tube V2
 publish_to: 'none'
 version: 1.0.0+1
+
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.2.0 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
-  youtube_player_flutter: ^9.1.1
+  youtube_player_flutter: 9.1.1
+  http: ^1.2.0
+  cupertino_icons: ^1.0.6
 
 flutter:
   uses-material-design: true
