@@ -14,7 +14,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.19.6' # <-- INI KUNCINYA, DOWNGRADE DARI 3.22.0
           channel: 'stable'
           cache: false
 
@@ -22,7 +22,6 @@ jobs:
         run: |
           rm -rf android
           flutter create . --project-name ngalong_tubev2 --platforms=android
-          cat android/app/build.gradle
 
       - run: flutter clean
       - run: flutter pub get
