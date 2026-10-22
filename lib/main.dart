@@ -124,8 +124,14 @@ class _PlayerPipedPageState extends State<PlayerPipedPage> {
   VideoPlayerController? _controller;
   List<dynamic> _streams = [];
   bool _loading = true;
-  String _log = 'Loading...';
-  final List<String> instances = ['https://pipedapi.adminforge.de','https://pipedapi.kavin.rocks','https://api.piped.private.coffee','https://pipedapi.syncpundit.io'];
+  String _log = 'Loading HLS...';
+  final List<String> instances = [
+    'https://pipedapi.adminforge.de',
+    'https://pipedapi.kavin.rocks',
+    'https://api.piped.private.coffee',
+    'https://pipedapi.syncpundit.io',
+    'https://pipedapi.drgns.space'
+  ];
 
   @override
   void initState() { super.initState(); fetchStream(); }
@@ -134,29 +140,68 @@ class _PlayerPipedPageState extends State<PlayerPipedPage> {
     for (var inst in instances) {
       try {
         setState(() => _log = 'Fetch ${Uri.parse(inst).host}');
-        final res = await http.get(Uri.parse('$inst/streams/${widget.video.videoId}'), headers: {'User-Agent':'Mozilla/5.0'}).timeout(const Duration(seconds: 8));
+        final res = await http.get(Uri.parse('$inst/streams/${widget.video.videoId}'), headers: {'User-Agent':'Mozilla/5.0'}).timeout(const Duration(seconds: 10));
         if (res.statusCode==200) {
           final data = jsonDecode(res.body);
+          
+          // 1. COBA HLS DULU - ini yang paling ampuh
+          String? hlsUrl = data['hls'];
+          if (hlsUrl != null && hlsUrl.isNotEmpty) {
+            await play(hlsUrl);
+            // simpen juga mp4 buat pilihan resolusi
+            final vStreams = data['videoStreams'] as List? ?? [];
+            if (vStreams.isNotEmpty) {
+              vStreams.sort((a,b) => (a['height']??0).compareTo(b['height']??0));
+              setState(() => _streams = vStreams);
+            }
+            return;
+          }
+          
+          // 2. Kalo HLS gak ada, coba dash
+          String? dashUrl = data['dash'];
+          if (dashUrl != null && dashUrl.toString().isNotEmpty) {
+             // dash susah di video_player, skip dulu
+          }
+
+          // 3. Fallback MP4
           final streams = data['videoStreams'] as List? ?? [];
           if (streams.isNotEmpty) {
             streams.sort((a,b) => (a['height']??0).compareTo(b['height']??0));
             setState(() => _streams = streams);
-            var pick = streams.firstWhere((e) => e['height']==480, orElse: () => streams.firstWhere((e) => e['height']==360, orElse: () => streams[0]));
+            var pick = streams.firstWhere((e) => e['height']==360, orElse: () => streams[0]);
             await play(pick['url']);
             return;
           }
         }
-      } catch (e) { continue; }
+      } catch (e) { 
+        setState(()=> _log = 'Error $e');
+        continue; 
+      }
     }
-    setState(() { _loading=false; _log='Gagal load stream'; });
+    // Fallback terakhir: coba Invidious
+    try {
+      setState(()=> _log = 'Coba Invidious...');
+      final inv = await http.get(Uri.parse('https://inv.nadeko.net/api/v1/videos/${widget.video.videoId}')).timeout(const Duration(seconds: 8));
+      if(inv.statusCode==200){
+        final d = jsonDecode(inv.body);
+        final fStreams = d['formatStreams'] as List? ?? [];
+        if(fStreams.isNotEmpty){
+          await play(fStreams[0]['url']);
+          return;
+        }
+      }
+    } catch(_){}
+    
+    setState(() { _loading=false; _log='Gagal load stream, coba video lain'; });
   }
 
   Future<void> play(String url) async {
     try {
+      if(_controller!=null) await _controller!.dispose();
       final c = VideoPlayerController.networkUrl(Uri.parse(url));
       await c.initialize();
       await c.play();
-      setState(() { _controller=c; _loading=false; _log='Playing'; });
+      setState(() { _controller=c; _loading=false; _log='Playing ${Uri.parse(url).host}'; });
     } catch (e) {
       setState(() { _log='Play error: $e'; _loading=false; });
     }
@@ -170,9 +215,9 @@ class _PlayerPipedPageState extends State<PlayerPipedPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(backgroundColor: Colors.black, title: Text(widget.video.title, maxLines:1, style: const TextStyle(fontSize:13)),
-        actions: [if (_streams.isNotEmpty) PopupMenuButton<int>(icon: const Icon(Icons.hd), onSelected: (i) => play(_streams[i]['url']), itemBuilder: (_) => List.generate(_streams.length, (i) => PopupMenuItem(value: i, child: Text('${_streams[i]['height']}p ${(_streams[i]['mimeType']??'').toString().split('/').last}'))))]),
+        actions: [if (_streams.isNotEmpty) PopupMenuButton<int>(icon: const Icon(Icons.hd), onSelected: (i) => play(_streams[i]['url']), itemBuilder: (_) => List.generate(_streams.length, (i) => PopupMenuItem(value: i, child: Text('${_streams[i]['height']}p'))))]),
       body: Column(children: [
-          AspectRatio(aspectRatio: 16/9, child: _loading ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height:8), Text(_log, style: const TextStyle(color: Colors.grey, fontSize:11))])) : _controller != null && _controller!.value.isInitialized ? Stack(alignment: Alignment.bottomCenter, children: [VideoPlayer(_controller!), VideoProgressIndicator(_controller!, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFF8A2BE2)))]) : Center(child: Text(_log))),
+          AspectRatio(aspectRatio: 16/9, child: _loading ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(color: Color(0xFF8A2BE2)), const SizedBox(height:12), Text(_log, style: const TextStyle(color: Colors.grey, fontSize:11))])) : _controller != null && _controller!.value.isInitialized ? Stack(alignment: Alignment.bottomCenter, children: [VideoPlayer(_controller!), VideoProgressIndicator(_controller!, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFF8A2BE2)))]) : Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.error, color: Colors.red), const SizedBox(height:8), Text(_log, textAlign: TextAlign.center)]))),
           if (_controller != null) Row(mainAxisAlignment: MainAxisAlignment.center, children: [IconButton(icon: Icon(_controller!.value.isPlaying ? Icons.pause_circle : Icons.play_circle, size: 50, color: const Color(0xFF8A2BE2)), onPressed: () => setState(() => _controller!.value.isPlaying ? _controller!.pause() : _controller!.play()))]),
         ],
       ),
