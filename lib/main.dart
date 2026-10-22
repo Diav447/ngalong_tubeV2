@@ -166,19 +166,52 @@ class PlayerPage extends StatefulWidget {
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
+
 class _PlayerPageState extends State<PlayerPage> {
   late YoutubePlayerController _c;
   @override
-  void initState() { super.initState(); _c=YoutubePlayerController(initialVideoId: widget.video.videoId, flags: const YoutubePlayerFlags(autoPlay: true, mute: false, forceHD: false)); }
+  void initState() { 
+    super.initState(); 
+    _c = YoutubePlayerController(
+      initialVideoId: widget.video.videoId, 
+      flags: const YoutubePlayerFlags(autoPlay: true, mute: false, forceHD: false)
+    ); 
+  }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
   @override
-  Widget build(BuildContext c) => Scaffold(
-    backgroundColor: Colors.black,
-    appBar: AppBar(title: Text(widget.video.title, maxLines:1), backgroundColor: Colors.black),
-    body: YoutubePlayerBuilder(
-      player: YoutubePlayer(controller: _c, showVideoProgressIndicator: true, aspectRatio: 16/9, progressIndicatorColor: const Color(0xFF8A2BE2)),
-      builder: (context, player) => Column(children: [player, Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.video.title, style: const TextStyle(fontWeight: FontWeight.bold)), Text(widget.video.author, style: const TextStyle(color: Colors.grey))]))))]),
-    ),
-  );
+  Widget build(BuildContext c) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(title: Text(widget.video.title, maxLines: 1), backgroundColor: Colors.black),
+      body: YoutubePlayerBuilder(
+        player: YoutubePlayer(
+          controller: _c,
+          showVideoProgressIndicator: true,
+          aspectRatio: 16/9,
+          progressIndicatorColor: const Color(0xFF8A2BE2),
+        ),
+        builder: (context, player) {
+          return Column(
+            children: [
+              player,
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.video.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      const SizedBox(height: 6),
+                      Text(widget.video.author, style: const TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
