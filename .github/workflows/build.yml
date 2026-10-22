@@ -1,5 +1,9 @@
 name: Build APK
-on: [push]
+
+on:
+  push:
+    branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,14 +15,21 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.2'
+          flutter-version: '3.29.3'
           channel: 'stable'
-      - run: |
+      - name: Create Android Project
+        run: |
           rm -rf android
-          flutter create . --project-name ngalong_tubev2 --platforms=android
-      - run: flutter pub get
-      - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+          flutter create . --platforms=android --project-name ngalong_tubev2
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST
+          cat $MANIFEST
+      - name: Install deps
+        run: flutter pub get
+      - name: Build APK Release
+        run: flutter build apk --release
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: NGALONG-TUBE-V2-APK
+          name: ngalong-tube-v16
           path: build/app/outputs/flutter-apk/app-release.apk
