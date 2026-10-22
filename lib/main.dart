@@ -1,8 +1,8 @@
+cat > lib/main.dart << 'DART'
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 
 void main() => runApp(const NgalongTubeV2());
 
@@ -36,7 +36,6 @@ class _DevConsolePageState extends State<DevConsolePage> {
   final List<String> pipedInstances = [
     'https://pipedapi.kavin.rocks',
     'https://pipedapi.adminforge.de',
-    'https://api.piped.projectsegfau.lt',
   ];
 
   void addLog(String m) {
@@ -45,11 +44,8 @@ class _DevConsolePageState extends State<DevConsolePage> {
 
   Future<void> doSearch(String query) async {
     setState(() { _loading=true; _videos=[]; });
-    addLog('🔍 Searching: $query MODE: PIPED+INVIDIOUS');
-    // Langsung Piped aja, biar ringan
     for (var instance in pipedInstances) {
       try {
-        addLog('📡 Try $instance');
         final url = Uri.parse('$instance/search?q=${Uri.encodeComponent(query)}&filter=videos');
         final res = await http.get(url).timeout(const Duration(seconds: 6));
         if (res.statusCode==200) {
@@ -65,7 +61,7 @@ class _DevConsolePageState extends State<DevConsolePage> {
           }
           if (vids.isNotEmpty) {
             setState(() => _videos=vids);
-            addLog('✅ OK ${vids.length} video!');
+            addLog('OK ${vids.length} video');
             setState(() => _loading=false);
             return;
           }
@@ -82,17 +78,15 @@ class _DevConsolePageState extends State<DevConsolePage> {
   Widget build(BuildContext c) {
     return Scaffold(
       body: SafeArea(child: Column(children: [
-        const Padding(padding: EdgeInsets.all(12), child: Row(children: [Text('😈', style: TextStyle(fontSize:26)), SizedBox(width:8), Text('Ngalong Tube V18 - PIPED STREAM', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF8A2BE2))) ])),
+        const Padding(padding: EdgeInsets.all(12), child: Row(children: [Text('V18.3 PIPED', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8A2BE2))) ])),
         Padding(padding: const EdgeInsets.symmetric(horizontal:16), child: TextField(controller: _searchC, onSubmitted: doSearch, decoration: InputDecoration(hintText: 'Search...', prefixIcon: const Icon(Icons.search), filled: true, fillColor: const Color(0xFF1A1A1A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)))),
-        Container(height:90, color: const Color(0xFF0A0A0A), padding: const EdgeInsets.all(8), child: ListView.builder(itemCount:_logs.length, itemBuilder: (c,i) => Text(_logs[i], style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.greenAccent)))),
         if(_loading) const LinearProgressIndicator(color: Color(0xFF8A2BE2)),
-        Expanded(child: ListView.builder(itemCount:_videos.length, itemBuilder:(c,i){ final v=_videos[i]; return ListTile(leading: ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.network(v.thumb, width:90, height:60, fit: BoxFit.cover)), title: Text(v.title, maxLines:2, style: const TextStyle(fontSize:13)), subtitle: Text(v.author, maxLines:1, style: const TextStyle(fontSize:11, color: Colors.grey)), onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_)=>PlayerPipedPage(video: v))));})),
+        Expanded(child: ListView.builder(itemCount:_videos.length, itemBuilder:(c,i){ final v=_videos[i]; return ListTile(leading: ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.network(v.thumb, width:90, height:60, fit: BoxFit.cover)), title: Text(v.title, maxLines:2, style: const TextStyle(fontSize:13)), onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_)=>PlayerPipedPage(video: v))));})),
       ])),
     );
   }
 }
 
-// PLAYER BARU - PAKE PIPED STREAM BIAR ENTENG + BISA PILIH RESOLUSI
 class PlayerPipedPage extends StatefulWidget {
   final VideoItem video; const PlayerPipedPage({super.key, required this.video});
   @override
@@ -100,88 +94,63 @@ class PlayerPipedPage extends StatefulWidget {
 }
 
 class _PlayerPipedPageState extends State<PlayerPipedPage> {
-  VideoPlayerController? _videoController;
-  ChewieController? _chewieController;
+  VideoPlayerController? _controller;
   List<dynamic> _streams = [];
-  String _currentQuality = 'Loading...';
-  bool _loadingStream = true;
-  String _log = '';
-
-  final List<String> pipedInstances = [
-    'https://pipedapi.kavin.rocks',
-    'https://pipedapi.adminforge.de',
-    'https://api.piped.projectsegfau.lt',
-  ];
+  bool _loading = true;
+  String _log = 'Loading...';
+  final List<String> instances = ['https://pipedapi.kavin.rocks','https://pipedapi.adminforge.de'];
 
   @override
-  void initState() {
-    super.initState();
-    fetchStream();
-  }
+  void initState() { super.initState(); fetchStream(); }
 
   Future<void> fetchStream() async {
-    for (var instance in pipedInstances) {
+    for (var inst in instances) {
       try {
-        setState(() => _log = 'Try $instance/streams/${widget.video.videoId}');
-        final url = Uri.parse('$instance/streams/${widget.video.videoId}');
-        final res = await http.get(url).timeout(const Duration(seconds: 8));
+        setState(() => _log = 'Fetch $inst');
+        final res = await http.get(Uri.parse('$inst/streams/${widget.video.videoId}')).timeout(const Duration(seconds: 8));
         if (res.statusCode==200) {
           final data = jsonDecode(res.body);
-          final videoStreams = data['videoStreams'] as List? ?? [];
-          if (videoStreams.isNotEmpty) {
-            // Sort dari kualitas terendah biar enteng di HP kentang
-            videoStreams.sort((a,b) => (a['height']??0).compareTo(b['height']??0));
-            setState(() { _streams = videoStreams; });
-            // Default pilih 720p kalo ada, kalo gak 480p, kalo gak paling kecil
-            var pick = videoStreams.firstWhere((e) => e['height']==720, orElse: () => videoStreams.firstWhere((e) => e['height']==480, orElse: () => videoStreams[0]));
-            await playUrl(pick['url'], '${pick['height']}p ${pick['mimeType']?.split('/').last ?? ''}');
+          final streams = data['videoStreams'] as List? ?? [];
+          if (streams.isNotEmpty) {
+            streams.sort((a,b) => (a['height']??0).compareTo(b['height']??0));
+            setState(() => _streams = streams);
+            var pick = streams.firstWhere((e) => e['height']==480, orElse: () => streams.firstWhere((e) => e['height']==360, orElse: () => streams[0]));
+            await play(pick['url']);
             return;
           }
         }
-      } catch (e) {
-        setState(() => _log = 'Fail $instance: $e');
-        continue;
-      }
+      } catch (e) { continue; }
     }
-    setState(() { _loadingStream=false; _log='All Piped instances fail'; });
+    setState(() { _loading=false; _log='Gagal'; });
   }
 
-  Future<void> playUrl(String url, String quality) async {
+  Future<void> play(String url) async {
     try {
-      setState(() { _loadingStream=true; _currentQuality=quality; });
-      _videoController?.dispose();
-      _chewieController?.dispose();
-      final vc = VideoPlayerController.networkUrl(Uri.parse(url));
-      await vc.initialize();
-      final cc = ChewieController(videoPlayerController: vc, autoPlay: true, looping: false, allowFullScreen: true, aspectRatio: vc.value.aspectRatio);
-      setState(() { _videoController=vc; _chewieController=cc; _loadingStream=false; });
+      final c = VideoPlayerController.networkUrl(Uri.parse(url));
+      await c.initialize();
+      await c.play();
+      setState(() { _controller=c; _loading=false; _log='Playing'; });
     } catch (e) {
-      setState(() { _log='Play fail: $e'; _loadingStream=false; });
+      setState(() { _log='Play error: $e'; _loading=false; });
     }
   }
 
   @override
-  void dispose() { _videoController?.dispose(); _chewieController?.dispose(); super.dispose(); }
+  void dispose() { _controller?.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext c) {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black, 
-        title: Text(widget.video.title, maxLines:1, style: const TextStyle(fontSize:14)),
+        backgroundColor: Colors.black,
+        title: Text(widget.video.title, maxLines:1, style: const TextStyle(fontSize:13)),
         actions: [
           if (_streams.isNotEmpty)
-            PopupMenuButton(
+            PopupMenuButton<int>(
               icon: const Icon(Icons.hd),
-              onSelected: (val) {
-                final s = _streams[val as int];
-                playUrl(s['url'], '${s['height']}p');
-              },
-              itemBuilder: (ctx) => List.generate(_streams.length, (i){
-                final s = _streams[i];
-                return PopupMenuItem(value: i, child: Text('${s['height']}p - ${s['mimeType']} - ${s['fps']}fps'));
-              }),
+              onSelected: (i) => play(_streams[i]['url']),
+              itemBuilder: (_) => List.generate(_streams.length, (i) => PopupMenuItem(value: i, child: Text('${_streams[i]['height']}p'))),
             )
         ],
       ),
@@ -189,13 +158,13 @@ class _PlayerPipedPageState extends State<PlayerPipedPage> {
         children: [
           AspectRatio(
             aspectRatio: 16/9,
-            child: _loadingStream ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(color: Color(0xFF8A2BE2)), const SizedBox(height:10), Text(_log, style: const TextStyle(fontSize:10, color: Colors.grey)), Text('Quality: $_currentQuality', style: const TextStyle(fontSize:11))])) 
-            : _chewieController != null ? Chewie(controller: _chewieController!) : const Center(child: Text('Gagal load stream')),
+            child: _loading ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const CircularProgressIndicator(), const SizedBox(height:8), Text(_log, style: const TextStyle(color: Colors.grey, fontSize:11))]))
+            : _controller != null && _controller!.value.isInitialized ? Stack(alignment: Alignment.bottomCenter, children: [VideoPlayer(_controller!), VideoProgressIndicator(_controller!, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Color(0xFF8A2BE2)))]) : Text(_log),
           ),
-          ListTile(title: Text(widget.video.title, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${widget.video.author}\nQuality: $_currentQuality | Tap icon HD di pojok kanan atas buat ganti resolusi', style: const TextStyle(fontSize:12, color: Colors.grey))),
-          if (_log.isNotEmpty) Padding(padding: const EdgeInsets.all(8), child: Text(_log, style: const TextStyle(fontFamily: 'monospace', fontSize:10, color: Colors.greenAccent))),
+          if (_controller != null) IconButton(icon: Icon(_controller!.value.isPlaying ? Icons.pause : Icons.play_arrow, size: 40), onPressed: () => setState(() => _controller!.value.isPlaying ? _controller!.pause() : _controller!.play())),
         ],
       ),
     );
   }
 }
+DART
