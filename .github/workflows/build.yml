@@ -6,30 +6,41 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.3'
+          flutter-version: '3.22.2'
           channel: 'stable'
+
       - name: Create Android Project
         run: |
           rm -rf android
           flutter create . --platforms=android --project-name ngalong_tubev2
-          MANIFEST=android/app/src/main/AndroidManifest.xml
-          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST
-          cat $MANIFEST
+          # Fix 1: Internet permission biar bisa streaming Piped
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />' android/app/src/main/AndroidManifest.xml
+          # Fix 2: Kotlin 1.8.0 -> 1.9.22 biar gak error package_info_plus
+          sed -i "s/1.8.0/1.9.22/g" android/settings.gradle || true
+          sed -i "s/1.8.0/1.9.22/g" android/build.gradle || true
+          sed -i "s/1.9.0/1.9.22/g" android/settings.gradle || true
+          cat android/settings.gradle | grep kotlin
+          cat android/app/src/main/AndroidManifest.xml | grep INTERNET
+
       - name: Install deps
         run: flutter pub get
+
       - name: Build APK Release
         run: flutter build apk --release
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ngalong-tube-v16
+          name: ngalong-tube-v18-piped
           path: build/app/outputs/flutter-apk/app-release.apk
